@@ -93,10 +93,10 @@ class IntentionAgent(AgentBase):
         # 动态获取 Skills 描述
         skill_mapping = {
             "memory-query": "memory_query",
-            "plan-trip": "itinerary_planning", 
+            # "plan-trip": "itinerary_planning", 
             "preference": "preference",
-            "query-info": "information_query",
-            "ask-question": "rag_knowledge",
+            # "query-info": "information_query",
+            # "ask-question": "rag_knowledge",
             "event-collection": "event_collection"
         }
         
@@ -121,11 +121,8 @@ class IntentionAgent(AgentBase):
 【重要 - 意图区分原则】
 请基于语义理解判断意图，不要机械匹配关键词。同一个词在不同语境下可能对应不同意图：
 - "我去过北京吗？" → memory_query（询问自己的历史）
-- "北京怎么样？" / "北京有什么好玩的？" → information_query（询问客观信息）
-- "我想去北京" → itinerary_planning（规划未来行程）
 
 优先级规则：
-- memory_query 优先于 information_query（当问题涉及用户自己的历史时）
 - 如果用户明确询问"我的"、"我过去的"，必须识别为 memory_query
 
 【任务要求】
@@ -160,7 +157,7 @@ class IntentionAgent(AgentBase):
 
     "intents": [
         {{
-            "type": "意图类型（如：itinerary_planning, preference_collection, information_query等）",
+            "type": "意图类型（如：preference，event_collection等）",
             "confidence": 0.95,
             "description": "该意图的具体说明",
             "reason": "为什么识别出该意图的原因"
@@ -196,18 +193,16 @@ class IntentionAgent(AgentBase):
 - memory_query: 记忆查询智能体
 - event_collection: 事项收集智能体
 - preference: 偏好管理智能体
-- information_query: 信息查询智能体（联网搜索）
-- rag_knowledge: RAG知识库智能体（查询企业知识库）
 
 **Priority 2（依赖 Priority 1）- 行程规划类：**
-- itinerary_planning: 行程规划智能体（需要事项收集的结果）
+- 【该agent暂时不可用】
 
 **说明：**
 - Priority 1 的智能体都是信息获取，互不依赖，可并行执行提升速度
 - Priority 2 的智能体需要使用 Priority 1 收集的信息
 - 示例：用户说"我要从天津去北京，喜欢住汉庭"
   → Priority 1: preference + event_collection（并行）
-  → Priority 2: itinerary_planning（使用 Priority 1 的结果）
+  → Priority 2: （使用 Priority 1 的结果）【该agent暂时不可用】
 
 请开始分析，直接输出JSON：
 """

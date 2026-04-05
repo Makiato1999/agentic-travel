@@ -18,20 +18,18 @@ sys.path.insert(0, project_root)
 
 try:
     import agentscope
+
     print(f"AgentScope: {agentscope.__version__}")
     print("=" * 70)
     print()
 except ImportError as e:
-    print("❌ AgentScope 未安装或路径不正确")
+    print("❌ AgentScope 未安装，或当前未使用项目对应的 Python 虚拟环境")
     print(f"错误: {e}")
     print()
     print("解决方案：")
-    print("1. 打开新终端")
-    print("2. 运行: conda activate base")
-    print("3. 运行: python tests/test_intention_agent.py")
-    print()
-    print("或者使用绝对路径:")
-    print("  /opt/miniconda3/bin/python tests/test_intention_agent.py")
+    print("1. 激活项目虚拟环境（venv 或 conda 均可）")
+    print("2. 安装依赖: pip install -r requirements.txt")
+    print("3. 重新运行: python tests/test_intention_agent.py")
     print("=" * 70)
     sys.exit(1)
 
@@ -52,6 +50,7 @@ async def test_intention_agent():
     except Exception as e:
         print(f"❌ 初始化失败: {e}")
         import traceback
+
         traceback.print_exc()
         return
 
@@ -64,60 +63,47 @@ async def test_intention_agent():
             client_kwargs={
                 "base_url": LLM_CONFIG["base_url"],
             },
-            temperature=LLM_CONFIG.get("temperature", 0.7),
-            max_tokens=LLM_CONFIG.get("max_tokens", 2000),
+            # temperature=LLM_CONFIG.get("temperature", 0.7),
+            # max_tokens=LLM_CONFIG.get("max_tokens", 2000),
         )
         print(f"✓ 模型创建成功")
     except Exception as e:
         print(f"❌ 模型创建失败: {e}")
         import traceback
+
         traceback.print_exc()
         return
 
     # 创建意图识别智能体
     print("创建意图识别智能体...")
     try:
-        agent = IntentionAgent(
-            name="IntentionAgent",
-            model=model
-        )
+        agent = IntentionAgent(name="IntentionAgent", model=model)
         print(f"✓ Agent 创建成功")
     except Exception as e:
         print(f"❌ Agent 创建失败: {e}")
         import traceback
+
         traceback.print_exc()
         return
 
     # 测试用例
     test_cases = [
-        {
-            "name": "行程规划",
-            "query": "我要从北京去上海出差3天"
-        },
-        {
-            "name": "偏好收集",
-            "query": "我的家在杭州，我喜欢住汉庭酒店"
-        },
-        {
-            "name": "个性化需求",
-            "query": "我要大机型，靠窗座位"
-        },
-        {
-            "name": "信息查询",
-            "query": "上海的天气怎么样？"
-        },
+        {"name": "行程规划", "query": "我要从北京去上海出差3天"},
+        {"name": "偏好收集", "query": "我的家在杭州，我喜欢住汉庭酒店"},
+        {"name": "个性化需求", "query": "我要大机型，靠窗座位"},
+        {"name": "信息查询", "query": "上海的天气怎么样？"},
     ]
 
     for i, test_case in enumerate(test_cases, 1):
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print(f"测试 {i}: {test_case['name']}")
-        print("="*70)
+        print("=" * 70)
         print(f"用户查询: {test_case['query']}")
         print()
 
         try:
             # 创建消息
-            user_msg = Msg(name="User", content=test_case['query'], role="user")
+            user_msg = Msg(name="User", content=test_case["query"], role="user")
 
             # 调用意图识别 (async)
             result = await agent(user_msg)
@@ -130,6 +116,7 @@ async def test_intention_agent():
         except Exception as e:
             print(f"❌ 测试失败: {e}")
             import traceback
+
             traceback.print_exc()
 
         print()
@@ -183,7 +170,9 @@ def display_result(result):
     if schedule:
         print("【智能体调度计划】")
         for agent in schedule:
-            agent_name = agent.get("agent_name") or agent.get("agent_type")  # 兼容两种命名
+            agent_name = agent.get("agent_name") or agent.get(
+                "agent_type"
+            )  # 兼容两种命名
             priority = agent.get("priority", 0)
             reason = agent.get("reason", "")
             expected_output = agent.get("expected_output", "")
@@ -196,13 +185,13 @@ def display_result(result):
 
 
 if __name__ == "__main__":
-    print("="*70)
+    print("=" * 70)
     print("意图识别智能体测试")
-    print("="*70)
+    print("=" * 70)
     print()
 
     asyncio.run(test_intention_agent())
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("测试完成！")
-    print("="*70)
+    print("=" * 70)
