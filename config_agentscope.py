@@ -14,7 +14,7 @@ def init_agentscope():
     - 模型配置改为直接在Agent初始化时指定
     """
     agentscope.init(
-        project="Aligo-Travel-Planning",
+        project="Agentic-Travel-Planning",
         name="multi_agent_system",
         logging_level="INFO"
     )
