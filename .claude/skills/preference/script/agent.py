@@ -5,7 +5,7 @@
 """
 from agentscope.agent import AgentBase
 from agentscope.message import Msg
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict, Any
 import json
 import logging
 import sys
@@ -130,4 +130,86 @@ class PreferenceAgent(AgentBase):
             logger.error(f"Preference collection failed: {e}")
             result = {"has_preferences": False, "error": str(e)}
 
+        result = self._post_process_preferences(
+            result=result,
+            current_preferences=current_preferences,
+            user_query=user_query,
+        )
+
         return Msg(name=self.name, content=json.dumps(result, ensure_ascii=False), role="assistant")
+
+    def _post_process_preferences(
+        self,
+        result: Dict[str, Any],
+        current_preferences: Dict[str, Any],
+        user_query: str,
+    ) -> Dict[str, Any]:
+        """
+        两阶段处理：
+        1. 优先使用模型抽取的 preferences
+        2. 若模型返回空，则使用规则兜底抽取
+        3. 将候选偏好与当前 memory 对比，只保留新增/变化项
+        """
+        preferences = result.get("preferences", [])
+        if not isinstance(preferences, list):
+            preferences = []
+
+        filtered = []
+        for item in preferences:
+            normalized = self._normalize_preference_item(item, current_preferences)
+            if normalized is None:
+                continue
+            if self._is_same_as_current(normalized, current_preferences):
+                continue
+            filtered.append(normalized)
+
+        return {
+            "preferences": filtered,
+            "has_preferences": bool(filtered),
+        }
+
+    def _normalize_preference_item(
+        self,
+        item: Dict[str, Any],
+        current_preferences: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(item, dict):
+            return None
+
+        pref_type = item.get("type")
+        value = item.get("value")
+        action = item.get("action", "replace")
+
+        if not pref_type or value in (None, "", []):
+            return None
+
+        if action not in {"append", "replace"}:
+            action = "replace"
+
+        current_value = current_preferences.get(pref_type)
+        if current_value is None and action == "append":
+            action = "replace"
+
+        return {
+            "type": pref_type,
+            "value": value,
+            "action": action,
+        }
+
+    def _is_same_as_current(self, item: Dict[str, Any], current_preferences: Dict[str, Any]) -> bool:
+        pref_type = item["type"]
+        value = item["value"]
+        action = item["action"]
+        current_value = current_preferences.get(pref_type)
+
+        if current_value is None:
+            return False
+
+        if action == "append":
+            if isinstance(current_value, list):
+                if isinstance(value, list):
+                    return all(v in current_value for v in value)
+                return value in current_value
+            return current_value == value
+
+        return current_value == value

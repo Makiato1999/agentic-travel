@@ -32,22 +32,35 @@ from context.memory_manager import MemoryManager
 
 
 TEST_CASES = [
-    # 按次序执行测试，每次只开一个测试任务
+    # 按次序执行测试，每次只开一个测试任务 
+    # {
+    #     "name": "preference",
+    #     "query": "我现在常住南京，出差时更喜欢高铁，酒店希望安静一些，饮食上不吃辣，请记住这些偏好。",
+    # },
+    # {
+    #     "name": "replace previous preference",
+    #     "query": "我旅行住酒店时更喜欢洲际，我海鲜过敏。",
+    # }
+    # {
+    #     "name": "ask memory",
+    #     "query": "我之前说过什么出差偏好？",
+    # },
+    # {
+    #     "name": "rag",
+    #     "query": "广州的住宿标准是多少？",
+    # },
+    # {
+    #     "name": "ask info",
+    #     "query": "上海下周的天气怎么样？",
+    # },
+    # {
+    #     "name": "plan trip",
+    #     "query": "下周我要去厦门出差4天，请结合我的偏好帮我规划一个商务出行方案。",
+    # },
+    # complex tasks in one query
     {
-        "name": "保存偏好",
-        "query": "我常住杭州，出差时喜欢住万豪或希尔顿，坐飞机尽量选大机型和靠窗座位，请记住。",
-    },
-    {
-        "name": "查询历史偏好",
-        "query": "我之前说过什么住宿和座位偏好？",
-    },
-    {
-        "name": "行程规划",
-        "query": "下周我要从深圳去上海出差3天，帮我规划一个商务出行方案。",
-    },
-    {
-        "name": "信息查询",
-        "query": "上海下周的天气怎么样？",
+        "name": "差旅综合场景",
+        "query": "我现在搬家去了苏州，这次出差不想坐高铁了，改成优先直飞航班；酒店还是希望安静一些，最好靠近地铁站，饮食上改成清淡一点。下周我要从苏州去武汉出差4天，请先告诉我差旅费用一般要在多久内报销，再查一下武汉下周天气，最后结合这些最新偏好帮我规划一个商务出行方案。",
     },
 ]
 
@@ -65,14 +78,18 @@ def parse_msg_json(msg: Msg) -> dict:
 
 
 def summarize_intention(intention_data: dict):
-    intents = [item.get("type", "unknown") for item in intention_data.get("intents", [])]
+    intents = [
+        item.get("type", "unknown") for item in intention_data.get("intents", [])
+    ]
     schedule = [
         f"{item.get('priority', '?')}:{item.get('agent_name', 'unknown')}"
         for item in intention_data.get("agent_schedule", [])
     ]
     print(f"识别意图: {intents}")
     print(f"调度计划: {schedule}")
-    print(f"关键实体: {json.dumps(intention_data.get('key_entities', {}), ensure_ascii=False)}")
+    print(
+        f"关键实体: {json.dumps(intention_data.get('key_entities', {}), ensure_ascii=False)}"
+    )
 
 
 def summarize_orchestration(result_data: dict):
@@ -87,7 +104,11 @@ def summarize_orchestration(result_data: dict):
         if agent_name == "preference":
             print(f"  偏好结果: {json.dumps(data, ensure_ascii=False)}")
         elif agent_name == "memory_query":
-            answer = data.get("answer") or data.get("message") or json.dumps(data, ensure_ascii=False)
+            answer = (
+                data.get("answer")
+                or data.get("message")
+                or json.dumps(data, ensure_ascii=False)
+            )
             print(f"  记忆回答: {answer}")
         elif agent_name == "event_collection":
             print(f"  事项信息: {json.dumps(data, ensure_ascii=False)}")
@@ -96,9 +117,20 @@ def summarize_orchestration(result_data: dict):
                 if data.get("error"):
                     print(f"  规划错误: {data.get('error')}")
                 elif data.get("itinerary"):
-                    print(f"  规划摘要: {json.dumps(data.get('itinerary', {}), ensure_ascii=False)[:500]}")
+                    print(
+                        f"  规划摘要: {json.dumps(data.get('itinerary', {}), ensure_ascii=False)[:500]}"
+                    )
                 else:
                     print(f"  规划结果: {json.dumps(data, ensure_ascii=False)[:500]}")
+        elif agent_name == "rag_knowledge":
+            answer = (
+                data.get("answer")
+                or data.get("message")
+                or json.dumps(data, ensure_ascii=False)
+            )
+            docs = data.get("retrieved_documents", [])
+            print(f"  知识库回答: {answer}")
+            print(f"  检索文档数: {len(docs)}")
         elif agent_name == "information_query":
             print(f"  查询结果: {json.dumps(data, ensure_ascii=False)[:500]}")
 
@@ -108,16 +140,16 @@ async def main():
 
     print("[1] 初始化系统")
     init_agentscope()
-    
+
     model = OpenAIChatModel(
-            model_name=LLM_CONFIG["model_name"],
-            api_key=LLM_CONFIG["api_key"],
-            client_kwargs={
-                "base_url": LLM_CONFIG["base_url"],
-            },
-            # temperature=LLM_CONFIG.get("temperature", 0.7),
-            # max_tokens=LLM_CONFIG.get("max_tokens", 2000),
-        )
+        model_name=LLM_CONFIG["model_name"],
+        api_key=LLM_CONFIG["api_key"],
+        client_kwargs={
+            "base_url": LLM_CONFIG["base_url"],
+        },
+        # temperature=LLM_CONFIG.get("temperature", 0.7),
+        # max_tokens=LLM_CONFIG.get("max_tokens", 2000),
+    )
     print(f"✓ 模型创建成功")
 
     session_id = str(uuid.uuid4())[:8]
@@ -169,7 +201,11 @@ async def main():
         summarize_orchestration(orchestration_data)
 
         conversation_context.append(user_msg)
-        conversation_context.append(Msg(name="assistant", content=orchestration_result.content, role="assistant"))
+        conversation_context.append(
+            Msg(
+                name="assistant", content=orchestration_result.content, role="assistant"
+            )
+        )
         memory_manager.add_message("user", case["query"])
         memory_manager.add_message("assistant", orchestration_result.content)
 

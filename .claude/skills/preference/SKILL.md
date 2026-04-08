@@ -23,6 +23,14 @@ description: Use this skill when the user states or updates their preferences, e
 - **replace**：识别「搬家到」「改成」等，覆盖原值
 - 偏好类型：`hotel_brands`, `airlines`, `home_location`, `seat_preference`, `meal_preference`, `budget_level` 等，支持自定义
 
+## 复合任务处理
+
+- 如果用户一句话中同时包含**偏好表达**与**其他任务**（如天气查询、知识库问答、行程规划、历史查询），**只提取偏好相关内容**，忽略非偏好部分
+- 不要因为句子里出现了出发地、目的地、天气、报销、规划等内容，就放弃提取偏好
+- 典型复合表达：
+  - 「我常住苏州，喜欢高铁和安静酒店。下周我要去成都出差，帮我查天气并规划行程」
+  - 该句中，本 skill 只输出偏好：`home_location=苏州`、`transportation_preference=高铁`、`accommodation_preference=安静酒店`
+
 ## 初始化与调用
 
 ```python
@@ -98,7 +106,16 @@ data = asyncio.run(save_preference("我还喜欢如家"))
 - budget_level: 预算等级
 - transportation_preference: 交通偏好
 - food_preference: 美食偏好
+- accommodation_preference: 住宿环境偏好（如安静、离地铁近、安全性高）
 （支持自定义新的偏好类型）
+
+【偏好识别提示】
+- 「更喜欢高铁而不是飞机」→ `transportation_preference`
+- 「不吃辣」→ `food_preference`
+- 「酒店希望安静一些」→ `accommodation_preference`
+- 「更关注酒店安全」→ `accommodation_preference`
+- 「预算不要太高」→ `budget_level`
+- 「离地铁近一点」→ `accommodation_preference`
 
 【输出格式】(严格JSON)
 {{
@@ -123,4 +140,5 @@ data = asyncio.run(save_preference("我还喜欢如家"))
 3. 如果用户使用「还」、「也」等词，使用 append
 4. 如果用户使用「搬家」、「改成」等词，使用 replace
 5. 如果是首次提及，使用 replace
-6. 如果用户未提及任何偏好，返回 {{"preferences": [], "has_preferences": false}}
+6. 如果用户一句话中混有多个任务，优先从中提取偏好片段，不要因为存在其他任务而返回空
+7. 如果用户未提及任何偏好，返回 {{"preferences": [], "has_preferences": false}}
