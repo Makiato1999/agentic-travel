@@ -96,7 +96,7 @@ class IntentionAgent(AgentBase):
             "plan-trip": "itinerary_planning", 
             "preference": "preference",
             "query-info": "information_query",
-            # "ask-question": "rag_knowledge",
+            "ask-question": "rag_knowledge",
             "event-collection": "event_collection"
         }
         
@@ -121,6 +121,8 @@ class IntentionAgent(AgentBase):
 【重要 - 意图区分原则】
 请基于语义理解判断意图，不要机械匹配关键词。同一个词在不同语境下可能对应不同意图：
 - "我去过北京吗？" → memory_query（询问自己的历史）
+- "北京怎么样？" / "北京有什么好玩的？" → information_query（询问客观信息）
+- "我想去北京" → itinerary_planning（规划未来行程）
 
 优先级规则：
 - memory_query 优先于 information_query（当问题涉及用户自己的历史时）
@@ -195,6 +197,7 @@ class IntentionAgent(AgentBase):
 - event_collection: 事项收集智能体
 - preference: 偏好管理智能体
 - information_query: 信息查询智能体（联网搜索）
+- rag_knowledge: RAG知识库智能体（查询企业知识库）
 
 **Priority 2（依赖 Priority 1）- 行程规划类：**
 - itinerary_planning: 行程规划智能体（需要事项收集的结果）

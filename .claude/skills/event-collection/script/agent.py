@@ -27,6 +27,8 @@ class EventCollectionAgent(AgentBase):
         super().__init__()
         self.name = name
         self.model = model
+        from utils.skill_loader import SkillLoader
+        self.skill_loader = SkillLoader()
 
     async def reply(self, x: Optional[Union[Msg, List[Msg]]] = None) -> Msg:
         if x is None:
@@ -68,7 +70,11 @@ class EventCollectionAgent(AgentBase):
         current_date = datetime.now().strftime("%Y年%m月%d日")
         weekday = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"][datetime.now().weekday()]
 
-        prompt = f"""你是事项收集专家，负责提取旅行的基础信息。
+        skill_instruction = self.skill_loader.get_skill_content("event-collection")
+        if not skill_instruction:
+            skill_instruction = "请提取本次行程的结构化信息。"
+
+        prompt = f"""你是事项收集专家，负责提取**本次行程**的基础信息。
 
 【当前时间】
 {current_date} {weekday}
@@ -76,42 +82,8 @@ class EventCollectionAgent(AgentBase):
 {background_info}【用户输入】
 {user_query}
 
-【提取要求】
-请尽可能提取以下信息：
-1. origin - 出发地
-2. destination - 目的地
-3. start_date - 出发日期（YYYY-MM-DD格式）
-4. end_date - 返程日期
-5. duration_days - 行程天数
-6. return_location - 返程地
-7. trip_purpose - 行程目的
-
-【日期处理规则】（重要）
-- 当前时间是{current_date}
-- 用户说"2月27日"或"2.27"等相对时间，请根据当前时间推断完整日期（年月日）
-- 用户说"明天"、"后天"、"下周"等相对时间，请根据当前时间计算具体日期
-- 所有日期必须输出完整的YYYY-MM-DD格式
-
-【特殊处理】
-- 对于"北京一日游"这类：destination和origin都设为北京
-- 对于"一日游"：duration_days设为1
-- 如果用户没说出发地，但有家庭住址信息，可推断出发地为家庭住址
-
-【输出格式】(严格JSON)
-{{
-    "origin": "北京",
-    "destination": "北京",
-    "start_date": "2026-02-27",
-    "end_date": "2026-02-27",
-    "duration_days": 1,
-    "return_location": "北京",
-    "trip_purpose": "旅游",
-    "missing_info": [],
-    "extracted_count": 7,
-    "summary": "北京一日游，2月27日"
-}}
-
-缺失的信息在missing_info中列出，对应字段设为null。
+【任务说明】
+{skill_instruction}
 """
 
         try:
