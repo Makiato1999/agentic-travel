@@ -25,7 +25,7 @@ from agents.information_query_agent import InformationQueryAgent
 from agents.rag_knowledge_agent import RAGKnowledgeAgent
 
 
-async def test_orchestration():
+async def test_orchestration_deprecated():
     """测试智能体协调系统"""
     print("=" * 70)
     print("智能体协调系统测试")
