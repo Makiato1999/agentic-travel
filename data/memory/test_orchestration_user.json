@@ -1,0 +1,45 @@
+{
+  "user_id": "test_orchestration_user",
+  "created_at": "2026-04-08T01:47:54.850752",
+  "updated_at": "2026-04-08T01:48:00.045494",
+  "preferences": [
+    {
+      "type": "home_location",
+      "value": "杭州"
+    },
+    {
+      "type": "hotel_brands",
+      "value": [
+        "万豪",
+        "希尔顿"
+      ]
+    },
+    {
+      "type": "seat_preference",
+      "value": [
+        "大机型",
+        "靠窗座位"
+      ]
+    }
+  ],
+  "chat_history": [
+    {
+      "role": "user",
+      "content": "我常住杭州，出差时喜欢住万豪或希尔顿，坐飞机尽量选大机型和靠窗座位，请记住。",
+      "timestamp": "2026-04-08T01:48:00.045104",
+      "session_id": "74d4c64f"
+    },
+    {
+      "role": "assistant",
+      "content": "{\"status\": \"completed\", \"intention\": {\"intents\": [{\"type\": \"preference\", \"confidence\": 0.95, \"description\": \"用户希望保存他们的住宿和座位偏好，以及常住城市信息。\", \"reason\": \"用户明确表达了他们的偏好信息，要求记住这些细节，适用于偏好管理智能体。\"}], \"key_entities\": {\"origin\": \"杭州\", \"other\": {\"酒店偏好\": [\"万豪\", \"希尔顿\"], \"坐位偏好\": [\"大机型\", \"靠窗座位\"]}}}, \"agents_executed\": 1, \"results\": [{\"agent_name\": \"preference\", \"priority\": 1, \"status\": \"success\", \"data\": {\"preferences\": [{\"type\": \"home_location\", \"value\": \"杭州\", \"action\": \"replace\"}, {\"type\": \"hotel_brands\", \"value\": \"万豪\", \"action\": \"append\"}, {\"type\": \"hotel_brands\", \"value\": \"希尔顿\", \"action\": \"append\"}, {\"type\": \"seat_preference\", \"value\": \"大机型\", \"action\": \"append\"}, {\"type\": \"seat_preference\", \"value\": \"靠窗座位\", \"action\": \"append\"}], \"has_preferences\": true}}]}",
+      "timestamp": "2026-04-08T01:48:00.045489",
+      "session_id": "74d4c64f"
+    }
+  ],
+  "trip_history": [],
+  "statistics": {
+    "total_trips": 0,
+    "total_messages": 2,
+    "frequent_destinations": {}
+  }
+}

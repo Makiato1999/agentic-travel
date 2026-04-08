@@ -95,7 +95,7 @@ class IntentionAgent(AgentBase):
             "memory-query": "memory_query",
             "plan-trip": "itinerary_planning", 
             "preference": "preference",
-            # "query-info": "information_query",
+            "query-info": "information_query",
             # "ask-question": "rag_knowledge",
             "event-collection": "event_collection"
         }
@@ -123,6 +123,7 @@ class IntentionAgent(AgentBase):
 - "我去过北京吗？" → memory_query（询问自己的历史）
 
 优先级规则：
+- memory_query 优先于 information_query（当问题涉及用户自己的历史时）
 - 如果用户明确询问"我的"、"我过去的"，必须识别为 memory_query
 
 【任务要求】
@@ -193,6 +194,7 @@ class IntentionAgent(AgentBase):
 - memory_query: 记忆查询智能体
 - event_collection: 事项收集智能体
 - preference: 偏好管理智能体
+- information_query: 信息查询智能体（联网搜索）
 
 **Priority 2（依赖 Priority 1）- 行程规划类：**
 - itinerary_planning: 行程规划智能体（需要事项收集的结果）
