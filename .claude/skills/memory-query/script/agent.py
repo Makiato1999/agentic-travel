@@ -234,16 +234,30 @@ class MemoryQueryAgent(AgentBase):
 
         lines = []
         pref_names = {
+            # new schema
+            "home_location": "常住地",
+            "hotel_brands": "酒店品牌偏好",
+            "seat_preference": "座位偏好",
+            "transportation_preference": "交通偏好",
+            "accommodation_preference": "住宿偏好",
+            "food_preference": "餐饮偏好",
+            "aircraft_type_preference": "机型偏好",
+            
+            # old schema
             "budget": "预算偏好",
             "accommodation": "住宿偏好",
             "transportation": "交通偏好",
             "food": "餐饮偏好",
             "activity": "活动偏好",
-            "other": "其他偏好"
+            "other": "其他偏好",
         }
 
         for key, value in preferences.items():
             if value and key in pref_names:
-                lines.append(f"- {pref_names[key]}: {value}")
+                if isinstance(value, list):
+                    value_text = "、".join(str(item) for item in value)
+                else:
+                    value_text = str(value)
+                lines.append(f"- {pref_names[key]}: {value_text}")
 
         return "\n".join(lines) if lines else "（暂无偏好记录）"
