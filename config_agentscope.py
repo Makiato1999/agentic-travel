@@ -1,5 +1,5 @@
 """
-AgentScope Configuration for Aligo Multi-Agent Travel Planning System
+AgentScope Configuration for Agentic Travel Planner
 适配 AgentScope 1.0.16+
 """
 import agentscope
