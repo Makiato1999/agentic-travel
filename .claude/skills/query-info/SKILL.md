@@ -1,26 +1,27 @@
 ---
 name: query-info
-description: Use this skill when the user wants to query real-time information like weather or general web search. Triggers when user asks "天气怎么样", "XX天气", "查一下XX", "搜索XX". This skill uses InformationQueryAgent (weather via wttr.in, web search via DDGS). For travel standards or policy questions use ask-question (RAG) instead.
+description: Use this skill when the user wants real-time information or general web search. Triggers when user asks "天气怎么样", "查一下XX", "搜索XX", "机场到市区怎么走", "哪些区域适合入住". This skill uses InformationQueryAgent (weather via WeatherAPI.com, web search via DDGS). For policy, standards, reimbursement, or internal rules use ask-question (RAG) instead.
 ---
 
 # Query Information (天气与网络搜索)
 
-查询**天气**（wttr.in）和**网络搜索**（DDGS），使用 **InformationQueryAgent**。差旅标准、报销政策等由 **ask-question**（RAG）处理。
+查询**天气**（WeatherAPI.com）和**网络搜索**（DDGS），使用 **InformationQueryAgent**。差旅标准、报销政策、审批流程等由 **ask-question**（RAG）处理。
 
 ## When to Use
 
 - 用户问「XX天气怎么样」「查一下XX」「搜索XX」
+- 用户问「机场到市区怎么走」「哪个区域适合商务入住」「路线/交通方式怎么选」
 - 不需要用 RAG 知识库、不需要用户记忆时
 
 ## Agent
 
-- **InformationQueryAgent** (`agents/information_query_agent.py`)
+- **InformationQueryAgent**（当前通过 `.claude/skills/query-info/script/agent.py` 加载）
 - 入参为 **model 对象**（非 model_config_name）
 - **异步**：`reply()` 为 `async`，需 `await`
 
 ## 支持的查询类型（本 Agent 实际实现）
 
-1. **天气查询**：基于 wttr.in，无需 API Key
+1. **天气查询**：基于 WeatherAPI.com（需配置 API Key）
 2. **网络搜索**：基于 DDGS（需 `pip install ddgs`），带摘要
 
 ## 初始化与调用
@@ -31,7 +32,7 @@ from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
 from config_agentscope import init_agentscope
 from config import LLM_CONFIG
-from agents.information_query_agent import InformationQueryAgent
+from agents.lazy_agent_registry import LazyAgentRegistry
 import json
 
 async def query_info(user_query: str):
@@ -43,7 +44,8 @@ async def query_info(user_query: str):
         temperature=LLM_CONFIG.get("temperature", 0.7),
         max_tokens=LLM_CONFIG.get("max_tokens", 2000),
     )
-    agent = InformationQueryAgent(name="InformationQueryAgent", model=model)
+    registry = LazyAgentRegistry(model=model, cache={})
+    agent = registry["information_query"]
     user_msg = Msg(name="user", content=user_query, role="user")
     result = await agent.reply(user_msg)
     return json.loads(result.content) if isinstance(result.content, str) else result.content
@@ -61,7 +63,8 @@ data = asyncio.run(query_info("北京明天天气怎么样？"))
 
 ## 注意
 
-- 本 Agent **不**处理「差旅标准」「申请单状态」「历史行程」等；差旅标准请用 **ask-question**（RAG），历史行程请用 **memory-query**。
+- 本 Agent **不**处理「差旅标准」「报销规则」「审批流程」「平台操作说明」「历史行程」等；这类问题优先使用 **ask-question**（RAG）或 **memory-query**。
+- 对「机场到市区怎么走」「哪些区域适合商务入住」「某地公共交通/路线建议」这类公开信息，应优先使用本 Agent 的网络搜索，而不是 RAG。
 - 网络搜索依赖：`pip install ddgs`（或 `duckduckgo-search`）。
 
 
