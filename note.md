@@ -416,3 +416,176 @@
 - 理解实现时：
   - 以代码为准
   - 文档只作为能力边界参考
+
+## 本轮联调总结
+
+- 当前已经跑通的主链：
+  - `preference`
+  - `memory_query`
+  - `event_collection`
+  - `itinerary_planning`
+  - `information_query`
+  - `rag_knowledge`
+- 已验证的入口：
+  - 最小测试脚本
+  - orchestration 集成测试
+  - CLI 真实交互
+
+## API 与模型接入问题
+
+- OpenAI 官方 SDK 可用，不代表 `AgentScope` 这层一定同样按预期返回
+- `OpenAIChatModel` 返回的可能是流式 `async_generator`
+- 需要正确消费 `ChatResponse` 流，而不是直接把返回对象当字符串
+- 某些模型 ID 在兼容平台上可能无权限或失效
+- 结论：
+  - 先验证官方 SDK
+  - 再验证 AgentScope
+  - 再跑 agent/orchestration/CLI
+
+## Intention 与 Orchestration 的边界
+
+- `IntentionAgent` 只负责：
+  - 识别意图
+  - 抽实体
+  - 生成 `agent_schedule`
+- `OrchestrationAgent` 才负责：
+  - 按优先级执行 agent
+  - 聚合各 agent 结果
+  - 写回 memory
+- 判断系统是否“真的跑通”，不能只看 intention 输出，要看 orchestration 是否真执行成功
+
+## Preference 调试结论
+
+- `PreferenceAgent` 早期完全依赖 LLM 从长句中抽偏好，复杂 query 下不稳定
+- 后来做法改为：
+  - LLM 先抽候选偏好
+  - 代码再与当前 memory 比较
+  - 若和现有值一致，则过滤掉，不重复写入
+- 结论：
+  - `preferences: []` 不一定是失败
+  - 也可能代表“本次输入与已有偏好一致”
+- 当前 preference schema 已偏向新字段：
+  - `home_location`
+  - `hotel_brands`
+  - `seat_preference`
+  - `transportation_preference`
+  - `accommodation_preference`
+  - `food_preference`
+  - `aircraft_type_preference`
+
+## Memory Query 调试结论
+
+- CLI 中出现过“明明已写入 preference，但 memory_query 回答没有偏好”的问题
+- 根因不是 memory 没写进去，而是 `_format_preferences()` 仍在使用旧字段映射
+- 修复方法：
+  - 给 `memory-query/script/agent.py` 补上新 schema 的映射
+- 结论：
+  - memory 层已经是新 schema
+  - query/展示层也必须同步 schema
+
+## Event Collection 调试结论
+
+- 早期问题：
+  - `home_location`、旧上下文和当前行程混在一起
+  - 出现 origin / duration / end_date 错误
+- 后来明确了规则：
+  - 当前 query 的显式 `origin/destination` 优先
+  - `home_location` 只能补缺，不能覆盖当前行程
+  - `duration_days -> end_date` 使用包含式计算
+  - `return_location` 默认等于 `origin`
+- 这些规则后来迁移进了 `event-collection/SKILL.md`
+
+## Weather 查询调试结论
+
+- `wttr.in` 的问题不是简单解析字段错误，而是接口本身返回不稳定
+- 曾真实遇到：
+  - HTTP 200
+  - content-type 是 JSON
+  - body 实际为 `null`
+- 也就是说：
+  - `resp.json()` 结果是 `None`
+  - 不是正常的天气对象 `dict`
+- 最终处理：
+  - 放弃 `wttr.in`
+  - 切换到 `WeatherAPI.com`
+  - 在 `config.py` 新增 `WEATHER_API_CONFIG`
+- 城市选择逻辑：
+  - 优先 `context.key_entities.destination`
+  - 其次“天气关键词附近城市”
+  - 最后才 fallback
+
+## RAG 调试结论
+
+- RAG 最早卡在本地依赖兼容：
+  - `torch`
+  - `numpy`
+  - `sentence-transformers`
+- 最终可行组合：
+  - `numpy<2`
+  - `sentence-transformers<5`
+- 还修过 `rag_knowledge` 中 `json` 作用域 bug
+- 现在 RAG 主链已通：
+  - 能加载
+  - 能检索
+  - 能返回 `retrieved_documents`
+  - 能在 orchestration 和 CLI 中执行
+
+## RAG 质量问题的本质
+
+- 遇到过这种现象：
+  - 问“成都报销多久”
+  - 检索结果里其实已经有通用报销规则
+  - 但最终回答仍说“成都没有相关信息”
+- 这说明问题不一定在 retrieval 本身
+- 更可能在：
+  - query 理解
+  - answer synthesis
+- 当前结论：
+  - 有时不是“没拿到知识”
+  - 而是“拿到了知识，但回答策略错了”
+- 后续处理方向：
+  - 在 `ask-question/SKILL.md` 中约束：
+    - 城市名 + 通用政策词时，优先答通用规则
+    - 若无城市专属差异，再补一句“未检索到该城市专属差异”
+
+## Planner 幻觉调试结论
+
+- itinerary planning 早期会出现：
+  - `苏州机场`
+  - 凭空指定不可靠站点/航班号
+- 说明 planner 需要更强现实约束
+- 当前处理：
+  - 在 `plan-trip/SKILL.md` 加规则
+  - 不要虚构机场/高铁站/火车站/航班号/车次
+  - 若出发城市缺少明确交通枢纽，用保守表述：
+    - “附近主要机场”
+    - “建议确认周边可达枢纽”
+- 验证结果：
+  - `苏州 -> 武汉 + 直飞` case 已从“苏州机场”收敛到“上海虹桥/浦东等附近机场”
+
+## 复杂多任务测试经验
+
+- 单条复杂 query 的价值：
+  - 能快速暴露 agent 边界问题
+  - 能看出 preference / RAG / info / event / planning 是否真正协同
+- 但调试时应先拆单能力，再压复杂 case
+- 推荐调试顺序：
+  1. `preference`
+  2. `memory_query`
+  3. `rag_knowledge`
+  4. `information_query`
+  5. `event_collection + itinerary_planning`
+  6. 最后再跑全链综合 case
+
+## 当前项目状态
+
+- 已达到：
+  - 简历项目可用
+  - 面试 demo 可演示
+  - README 可开始整理
+- 当前不是“功能不通”，而是“已通且可解释”
+- 剩余优化项更偏质量增强：
+  - RAG 回答策略继续收紧
+  - planner 现实性继续增强
+  - preference schema 旧字段逐步收口
+  - 评估是否追加 Redis / hybrid retrieval / rerank
