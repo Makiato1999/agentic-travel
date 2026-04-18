@@ -87,6 +87,24 @@ python .claude/skills/ask-question/script/init_knowledge_base.py
 python cli.py
 ```
 
+### 6. Run the API
+
+Install the new API dependencies and start `FastAPI`:
+
+```bash
+uvicorn api:app --reload
+```
+
+Core endpoints for the first phase:
+
+- `POST /api/v1/sessions`: create a session with `user_id`
+- `POST /api/v1/sessions/{session_id}/chat`: send one natural-language request
+- `GET /api/v1/sessions/{session_id}/status`: inspect memory and loaded agents
+- `GET /api/v1/sessions/{session_id}/history`: fetch trip history
+- `GET /api/v1/sessions/{session_id}/preferences`: fetch saved preferences
+- `POST /api/v1/sessions/{session_id}/clear`: clear short-term memory
+- `POST /api/v1/sessions/{session_id}/end`: close the session
+
 ## Architecture
 
 ```text
