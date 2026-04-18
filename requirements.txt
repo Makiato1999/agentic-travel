@@ -14,5 +14,9 @@ sentence-transformers==5.2.3
 # CLI 界面
 rich==13.9.4
 
+# API
+fastapi==0.116.1
+uvicorn==0.35.0
+
 # 网络搜索（DDGS）
 ddgs==9.10.0
