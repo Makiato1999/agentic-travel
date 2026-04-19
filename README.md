@@ -87,23 +87,54 @@ python .claude/skills/ask-question/script/init_knowledge_base.py
 python cli.py
 ```
 
-### 6. Run the API
+### 6. Run the backend
 
-Install the new API dependencies and start `FastAPI`:
+The backend now has an explicit startup module under `backend/`.
 
 ```bash
-uvicorn api:app --reload
+python -m backend.run
+```
+
+or:
+
+```bash
+uvicorn backend.app.main:app --reload
 ```
 
 Core endpoints for the first phase:
 
 - `POST /api/v1/sessions`: create a session with `user_id`
 - `POST /api/v1/sessions/{session_id}/chat`: send one natural-language request
+- `POST /api/v1/sessions/{session_id}/tasks`: create an observable task
+- `GET /api/v1/sessions/{session_id}/tasks/{task_id}`: poll task status, intention result, and progress
 - `GET /api/v1/sessions/{session_id}/status`: inspect memory and loaded agents
 - `GET /api/v1/sessions/{session_id}/history`: fetch trip history
 - `GET /api/v1/sessions/{session_id}/preferences`: fetch saved preferences
 - `POST /api/v1/sessions/{session_id}/clear`: clear short-term memory
 - `POST /api/v1/sessions/{session_id}/end`: close the session
+
+### 7. Run the frontend
+
+The frontend is now a separate `Vue + Vite` app under `frontend/`.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend currently uses the task endpoints rather than SSE:
+
+- submit a task
+- poll status
+- visualize intention recognition first
+- then render agent progress and final report
+
+Current frontend behavior:
+
+- changing `userId` automatically rebuilds the session
+- session-level context is cleared when switching users
+- long-term memory still persists by `userId` under `data/memory/`
 
 ## Architecture
 
@@ -129,12 +160,18 @@ CLI / Final Response
 
 ```text
 .
-├── agents/                  # core logic for intention, orchestration, and registries
-├── context/                 # memory manager and long-term memory
+├── backend/                 # backend app, agents, services, context, utils
+│   ├── app/                 # FastAPI entrypoint
+│   ├── agents/              # core orchestration and lazy-loading logic
+│   ├── context/             # memory manager and long-term memory
+│   ├── services/            # reusable application service layer
+│   ├── utils/               # backend utilities
+│   └── run.py               # backend startup module
+├── frontend/                # Vue + Vite frontend
 ├── data/                    # local memory, models, and knowledge files
 ├── .claude/skills/          # skill plugins
 ├── tests/                   # unit and integration tests
-├── cli.py                   # interactive entry point
+├── cli.py                   # interactive CLI entry point
 ├── config.py                # model, weather, and RAG configuration
 └── README.md
 ```

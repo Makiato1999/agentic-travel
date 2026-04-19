@@ -18,7 +18,7 @@ from agentscope.message import Msg
 from typing import Optional, Union, List
 import json
 import logging
-from utils.skill_loader import SkillLoader
+from backend.utils.skill_loader import SkillLoader
 
 logger = logging.getLogger(__name__)
 

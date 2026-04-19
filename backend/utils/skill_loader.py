@@ -8,7 +8,7 @@ class SkillLoader:
     def __init__(self, skills_dir: str = ".claude/skills"):
         # 获取当前文件的绝对路径，然后找到项目根目录
         current_file_path = os.path.abspath(__file__)
-        project_root = os.path.dirname(os.path.dirname(current_file_path))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
         self.skills_dir = os.path.join(project_root, skills_dir)
         self.skills: Dict[str, Dict] = {}
         
@@ -130,4 +130,3 @@ class SkillLoader:
         except Exception as e:
             print(f"Error reading skill content {target_path}: {e}")
             return None
-

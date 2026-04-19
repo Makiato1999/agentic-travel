@@ -19,6 +19,7 @@ from typing import Optional, Union, List, Dict, Any
 import json
 import logging
 import asyncio
+import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,12 @@ class OrchestrationAgent(AgentBase):
             del self.agent_registry[agent_name]
             logger.info(f"Unregistered agent: {agent_name}")
 
-    async def reply(self, x: Optional[Union[Msg, List[Msg]]] = None) -> Msg:
+    async def reply(
+        self,
+        x: Optional[Union[Msg, List[Msg]]] = None,
+        progress_callback=None,
+        planned_agents: Optional[List[str]] = None,
+    ) -> Msg:
         """
         协调执行流程
 
@@ -123,7 +129,13 @@ class OrchestrationAgent(AgentBase):
             if current_priority is not None and priority != current_priority:
                 # 并行执行当前优先级的所有任务
                 if parallel_tasks:
-                    batch_results = await self._execute_parallel_agents(parallel_tasks, context, results)
+                    batch_results = await self._execute_parallel_agents(
+                        parallel_tasks,
+                        context,
+                        results,
+                        progress_callback=progress_callback,
+                        planned_agents=planned_agents or [],
+                    )
                     results.extend(batch_results)
                     parallel_tasks = []
 
@@ -132,7 +144,13 @@ class OrchestrationAgent(AgentBase):
 
         # 执行最后一批
         if parallel_tasks:
-            batch_results = await self._execute_parallel_agents(parallel_tasks, context, results)
+            batch_results = await self._execute_parallel_agents(
+                parallel_tasks,
+                context,
+                results,
+                progress_callback=progress_callback,
+                planned_agents=planned_agents or [],
+            )
             results.extend(batch_results)
 
         # 聚合结果
@@ -181,7 +199,9 @@ class OrchestrationAgent(AgentBase):
         self,
         tasks: List[Dict],
         context: Dict[str, Any],
-        previous_results: List[Dict]
+        previous_results: List[Dict],
+        progress_callback=None,
+        planned_agents: Optional[List[str]] = None,
     ) -> List[Dict]:
         """
         并行执行多个智能体
@@ -207,11 +227,13 @@ class OrchestrationAgent(AgentBase):
                 expected_output=task.get("expected_output", ""),
                 previous_results=previous_results
             )
-            return [{
+            single_result = [{
                 "agent_name": task.get("agent_name"),
                 "priority": task.get("priority", 0),
                 "result": result
             }]
+            await self._emit_progress(progress_callback, single_result, planned_agents or [])
+            return single_result
 
         # 多个任务并行执行
         logger.info(f"Executing {len(tasks)} agents in parallel")
@@ -263,7 +285,30 @@ class OrchestrationAgent(AgentBase):
                 "result": result
             })
 
+        await self._emit_progress(progress_callback, results, planned_agents or [])
         return results
+
+    async def _emit_progress(self, progress_callback, latest_results: List[Dict], planned_agents: List[str]) -> None:
+        if not progress_callback:
+            return
+
+        payload = {
+            "stage": "agent_running",
+            "message": "已有智能体执行完成",
+            "latest_results": [
+                {
+                    "agent_name": item["agent_name"],
+                    "status": item["result"].get("status", "unknown"),
+                    "data": item["result"].get("data", {}),
+                }
+                for item in latest_results
+            ],
+            "agents_completed": [item["agent_name"] for item in latest_results],
+            "agents_planned": planned_agents,
+        }
+        maybe_awaitable = progress_callback(payload)
+        if inspect.isawaitable(maybe_awaitable):
+            await maybe_awaitable
 
     async def _execute_agent(
         self,

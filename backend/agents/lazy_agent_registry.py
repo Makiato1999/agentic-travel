@@ -131,10 +131,12 @@ class LazyAgentRegistry:
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             
-            # 关键：确保模块能找到项目根目录的包 (utils, config 等)
-            project_root = str(Path(__file__).parent.parent.absolute())
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
+            # 关键：确保技能脚本能找到 backend 下模块与项目根目录配置
+            backend_root = str(Path(__file__).parent.parent.absolute())
+            repo_root = str(Path(__file__).parent.parent.parent.absolute())
+            for path in (backend_root, repo_root):
+                if path not in sys.path:
+                    sys.path.insert(0, path)
                 
             spec.loader.exec_module(module)
             
