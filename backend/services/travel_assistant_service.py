@@ -3,28 +3,24 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agentscope.message import Msg
 from agentscope.model import OpenAIChatModel
 
-from agents.intention_agent import IntentionAgent
-from agents.orchestration_agent import OrchestrationAgent
+from backend.agents.intention_agent import IntentionAgent
+from backend.agents.orchestration_agent import OrchestrationAgent
+from backend.config_agentscope import init_agentscope
+from backend.context.memory_manager import MemoryManager
+from backend.services.result_formatter import ResultFormatter
+from backend.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
+from backend.utils.llm_resilience import retry_with_backoff, run_health_check as check_llm_health
 from config import LLM_CONFIG, RESILIENCE_CONFIG, SYSTEM_CONFIG
-from config_agentscope import init_agentscope
-from context.memory_manager import MemoryManager
-from services.result_formatter import ResultFormatter
-from utils.circuit_breaker import CircuitBreaker, CircuitOpenError
-from utils.llm_resilience import retry_with_backoff, run_health_check as check_llm_health
 
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+ProgressCallback = Optional[Callable[[Dict[str, Any]], Awaitable[None] | None]]
 
 
 class TravelAssistantService:
@@ -70,7 +66,7 @@ class TravelAssistantService:
 
         self.intention_agent = IntentionAgent(name="IntentionAgent", model=self.model)
 
-        from agents.lazy_agent_registry import LazyAgentRegistry
+        from backend.agents.lazy_agent_registry import LazyAgentRegistry
 
         self._agent_cache = {}
         lazy_registry = LazyAgentRegistry(
@@ -95,11 +91,28 @@ class TravelAssistantService:
         return {"user_id": self.user_id, "session_id": self.session_id}
 
     async def process_query(self, user_input: str) -> Dict[str, Any]:
+        return await self.process_query_with_updates(user_input)
+
+    async def process_query_with_updates(
+        self,
+        user_input: str,
+        progress_callback: ProgressCallback = None,
+    ) -> Dict[str, Any]:
         self._require_initialized()
 
         start_time = time.time()
         if self.circuit_breaker:
             self.circuit_breaker.raise_if_open()
+
+        await self._emit_progress(
+            progress_callback,
+            {
+                "stage": "intent_recognizing",
+                "progress": 12,
+                "message": "正在识别用户意图",
+                "query": user_input,
+            },
+        )
 
         context_messages = await self._build_context_messages(user_input)
         intention_result = await self._run_intention(context_messages)
@@ -108,6 +121,17 @@ class TravelAssistantService:
             fallback={"error": "无法解析意图识别结果"},
         )
         if intention_data.get("error"):
+            await self._emit_progress(
+                progress_callback,
+                {
+                    "stage": "failed",
+                    "progress": 100,
+                    "message": "意图识别失败",
+                    "query": user_input,
+                    "intention": intention_data,
+                    "error": "无法解析意图识别结果",
+                },
+            )
             return {
                 "user_id": self.user_id,
                 "session_id": self.session_id,
@@ -121,9 +145,39 @@ class TravelAssistantService:
                 },
             }
 
+        planned_agents = self._extract_planned_agents(intention_data)
+        await self._emit_progress(
+            progress_callback,
+            {
+                "stage": "intent_recognition_completed",
+                "progress": 28,
+                "message": "已完成意图识别",
+                "query": user_input,
+                "intention": intention_data,
+                "agents_planned": planned_agents,
+                "agents_completed": [],
+            },
+        )
+
         self.memory_manager.add_message("user", user_input)
 
-        orchestration_result = await self._run_orchestration(intention_result)
+        await self._emit_progress(
+            progress_callback,
+            {
+                "stage": "orchestrating",
+                "progress": 36,
+                "message": "正在调度智能体",
+                "query": user_input,
+                "intention": intention_data,
+                "agents_planned": planned_agents,
+                "agents_completed": [],
+            },
+        )
+        orchestration_result = await self._run_orchestration(
+            intention_result,
+            progress_callback=progress_callback,
+            planned_agents=planned_agents,
+        )
         result_data = self._safe_json_loads(
             orchestration_result.content,
             fallback={"error": "解析结果失败"},
@@ -131,7 +185,7 @@ class TravelAssistantService:
 
         self.memory_manager.add_message("assistant", json.dumps(result_data, ensure_ascii=False))
 
-        return {
+        response = {
             "user_id": self.user_id,
             "session_id": self.session_id,
             "query": user_input,
@@ -143,6 +197,23 @@ class TravelAssistantService:
                 "elapsed_seconds": round(time.time() - start_time, 3),
             },
         }
+
+        await self._emit_progress(
+            progress_callback,
+            {
+                "stage": "completed",
+                "progress": 100,
+                "message": "处理完成",
+                "query": user_input,
+                "intention": intention_data,
+                "agents_planned": planned_agents,
+                "agents_completed": [item["agent_name"] for item in response["agents_called"]],
+                "result": result_data,
+                "display_text": response["display_text"],
+                "timing": response["timing"],
+            },
+        )
+        return response
 
     async def run_health_check(self) -> Dict[str, Any]:
         breaker_status = self.circuit_breaker.get_status() if self.circuit_breaker else None
@@ -216,11 +287,15 @@ class TravelAssistantService:
                 self.circuit_breaker.record_failure()
             raise
 
-    async def _run_orchestration(self, intention_result):
+    async def _run_orchestration(self, intention_result, progress_callback=None, planned_agents=None):
         rc = RESILIENCE_CONFIG
         try:
             result = await retry_with_backoff(
-                lambda: self.orchestrator.reply(intention_result),
+                lambda: self.orchestrator.reply(
+                    intention_result,
+                    progress_callback=progress_callback,
+                    planned_agents=planned_agents,
+                ),
                 max_retries=rc.get("max_retries", 3),
                 base_delay_sec=rc.get("retry_base_delay_sec", 1.0),
                 max_delay_sec=rc.get("retry_max_delay_sec", 30.0),
@@ -287,6 +362,21 @@ class TravelAssistantService:
     def _require_initialized(self) -> None:
         if not self.memory_manager or not self.intention_agent or not self.orchestrator:
             raise RuntimeError("Service not initialized")
+
+    async def _emit_progress(self, callback: ProgressCallback, payload: Dict[str, Any]) -> None:
+        if not callback:
+            return
+        maybe_awaitable = callback(payload)
+        if hasattr(maybe_awaitable, "__await__"):
+            await maybe_awaitable
+
+    @staticmethod
+    def _extract_planned_agents(intention_data: Dict[str, Any]) -> List[str]:
+        return [
+            item["agent_name"]
+            for item in intention_data.get("agent_schedule", [])
+            if item.get("agent_name")
+        ]
 
     @staticmethod
     def _safe_json_loads(content: Any, fallback: Dict[str, Any]) -> Dict[str, Any]:

@@ -12,6 +12,7 @@ from typing import Optional
 # 添加项目根目录到路径
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, "backend"))
 
 from rich.console import Console
 from rich.panel import Panel
@@ -26,11 +27,11 @@ import json
 
 # 导入系统组件
 from config import LLM_CONFIG, RESILIENCE_CONFIG
-from config_agentscope import init_agentscope
-from services.result_formatter import ResultFormatter
-from services.travel_assistant_service import TravelAssistantService
-from utils.circuit_breaker import CircuitOpenError
-from utils.llm_resilience import run_health_check as check_llm_health
+from backend.config_agentscope import init_agentscope
+from backend.services.result_formatter import ResultFormatter
+from backend.services.travel_assistant_service import TravelAssistantService
+from backend.utils.circuit_breaker import CircuitOpenError
+from backend.utils.llm_resilience import run_health_check as check_llm_health
 
 
 class AligoCLI:
